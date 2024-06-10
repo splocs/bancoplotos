@@ -25,6 +25,7 @@ def pegar_info_acoes():
         acao = yf.Ticker(symbol_yf)
 
         retry_attempts = 5
+        success = False
         for attempt in range(retry_attempts):
             try:
                 info = acao.info
@@ -34,17 +35,18 @@ def pegar_info_acoes():
                 balance_sheet = acao.balance_sheet
                 if not info:
                     raise ValueError(f"Informações não encontradas para {symbol}")
+                success = True
                 break
+            except ValueError as ve:
+                st.warning(f"Erro ao buscar informações para {symbol}: {ve}. Tentando novamente...")
+                time.sleep(2)
             except Exception as e:
-                if attempt < retry_attempts - 1:
-                    st.warning(f"Erro ao buscar informações para {symbol}: {e}. Tentando novamente...")
-                    time.sleep(2)
-                else:
-                    st.error(f"Erro ao buscar informações para {symbol} após várias tentativas: {e}")
-                    continue
-
-        if attempt == retry_attempts - 1:
-            continue  # Se falhar após todas as tentativas, passa para a próxima ação
+                st.error(f"Erro ao buscar informações para {symbol}: {e}. Tentando novamente...")
+                time.sleep(2)
+        
+        if not success:
+            st.error(f"Erro ao buscar informações para {symbol} após várias tentativas.")
+            continue
 
         # Tentar conectar e inserir/atualizar no banco de dados com retry
         for attempt in range(retry_attempts):
