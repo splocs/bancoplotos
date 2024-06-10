@@ -2,8 +2,5 @@ numpy
 yfinance
 matplotlib
 plotly
-openai==0.28
 pandas
-scikit-learn
-pandas_ta
 sqlite3
