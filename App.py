@@ -16,28 +16,57 @@ def pegar_dados_acoes():
     path = 'https://raw.githubusercontent.com/splocs/meu-repositorio/main/acoes.csv'
     return pd.read_csv(path, delimiter=';')
 
+# Função para obter o cookie do Yahoo
+def get_yahoo_cookie():
+    cookie = None
+
+    user_agent_key = "User-Agent"
+    user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
+
+    headers = {user_agent_key: user_agent_value}
+    response = requests.get(
+        "https://fc.yahoo.com", headers=headers, allow_redirects=True
+    )
+
+    if not response.cookies:
+        raise Exception("Failed to obtain Yahoo auth cookie.")
+
+    cookie = list(response.cookies)[0]
+
+    return cookie
+
+# Função para obter o crumb do Yahoo
+def get_yahoo_crumb(cookie):
+    crumb = None
+
+    user_agent_key = "User-Agent"
+    user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
+
+    headers = {user_agent_key: user_agent_value}
+
+    crumb_response = requests.get(
+        "https://query1.finance.yahoo.com/v1/test/getcrumb",
+        headers=headers,
+        cookies={cookie.name: cookie.value},
+        allow_redirects=True,
+    )
+    crumb = crumb_response.text
+
+    if crumb is None:
+        raise Exception("Failed to retrieve Yahoo crumb.")
+
+    return crumb
+
 # Função para pegar cookies e crumb
 def obter_cookies_e_crumb():
-    # Primeiro, pegar o cookie
-    url = "https://fc.yahoo.com"
-    session = requests.Session()
-    response = session.get(url)
-    if response.status_code != 404:
-        raise Exception("Erro ao obter cookies")
-
-    # Agora pegar o crumb
-    url = "https://query2.finance.yahoo.com/v1/test/getcrumb"
-    response = session.get(url)
-    if response.status_code != 200:
-        raise Exception("Erro ao obter crumb")
-    
-    crumb = response.text
-    return session.cookies, crumb
+    cookie = get_yahoo_cookie()
+    crumb = get_yahoo_crumb(cookie)
+    return cookie, crumb
 
 # Função para pegar informações das ações e armazenar no banco de dados
 def pegar_info_acoes():
     df = pegar_dados_acoes()
-    cookies, crumb = obter_cookies_e_crumb()
+    cookie, crumb = obter_cookies_e_crumb()
     
     for index, row in df.iterrows():
         symbol = row['sigla_acao']
@@ -48,7 +77,7 @@ def pegar_info_acoes():
         for attempt in range(retry_attempts):
             try:
                 url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol_yf}?modules=summaryProfile,financialData,quoteType,defaultKeyStatistics,assetProfile,summaryDetail&crumb={crumb}"
-                response = requests.get(url, cookies=cookies)
+                response = requests.get(url, cookies={cookie.name: cookie.value})
                 if response.status_code != 200:
                     raise ValueError(f"Erro ao buscar informações para {symbol_yf}: {response.status_code}")
                 
@@ -216,23 +245,8 @@ try:
             balance_sheet TEXT
         )
         ''')
-        c.execute('SELECT info, recommendations_summary, dividends, splits, balance_sheet FROM acoes_info WHERE symbol = ?', (df_acao.iloc[0]['sigla_acao'],))
-        info = c.fetchone()
-
-    if info:
-        st.json(json.loads(info[0]))
-        st.write("Recomendações:")
-        st.dataframe(pd.read_json(info[1]))
-        st.write("Dividendos:")
-        st.dataframe(pd.read_json(info[2]))
-        st.write("Splits:")
-        st.dataframe(pd.read_json(info[3]))
-        st.write("Balanço Patrimonial:")
-        st.dataframe(pd.read_json(info[4]))
-    else:
-        st.write("Nenhuma informação disponível para esta ação.")
-except Exception as e:
-    st.error(f"Erro ao acessar o banco de dados: {e}")
+except sqlite3.OperationalError as e:
+    st.error(f"Erro ao criar a tabela no banco de dados: {e}")
 
 
 
