@@ -6,6 +6,7 @@ from datetime import date
 from PIL import Image
 import json
 import time
+import requests
 
 # Configurando a largura da página
 st.set_page_config(layout="wide")
@@ -15,26 +16,53 @@ def pegar_dados_acoes():
     path = 'https://raw.githubusercontent.com/splocs/meu-repositorio/main/acoes.csv'
     return pd.read_csv(path, delimiter=';')
 
+# Função para pegar cookies e crumb
+def obter_cookies_e_crumb():
+    # Primeiro, pegar o cookie
+    url = "https://fc.yahoo.com"
+    session = requests.Session()
+    response = session.get(url)
+    if response.status_code != 404:
+        raise Exception("Erro ao obter cookies")
+
+    # Agora pegar o crumb
+    url = "https://query2.finance.yahoo.com/v1/test/getcrumb"
+    response = session.get(url)
+    if response.status_code != 200:
+        raise Exception("Erro ao obter crumb")
+    
+    crumb = response.text
+    return session.cookies, crumb
+
 # Função para pegar informações das ações e armazenar no banco de dados
 def pegar_info_acoes():
     df = pegar_dados_acoes()
+    cookies, crumb = obter_cookies_e_crumb()
     
     for index, row in df.iterrows():
         symbol = row['sigla_acao']
         symbol_yf = symbol + '.SA'
-        acao = yf.Ticker(symbol_yf)
 
         retry_attempts = 5
         success = False
         for attempt in range(retry_attempts):
             try:
-                info = acao.info
+                url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol_yf}?modules=summaryProfile,financialData,quoteType,defaultKeyStatistics,assetProfile,summaryDetail&crumb={crumb}"
+                response = requests.get(url, cookies=cookies)
+                if response.status_code != 200:
+                    raise ValueError(f"Erro ao buscar informações para {symbol_yf}: {response.status_code}")
+                
+                data = response.json()
+                if 'quoteSummary' not in data or 'result' not in data['quoteSummary']:
+                    raise ValueError(f"Informações não encontradas para {symbol}")
+                
+                info = data['quoteSummary']['result'][0]
+                acao = yf.Ticker(symbol_yf)
                 recommendations_summary = acao.recommendations_summary
                 dividends = acao.dividends
                 splits = acao.splits
                 balance_sheet = acao.balance_sheet
-                if not info:
-                    raise ValueError(f"Informações não encontradas para {symbol}")
+
                 success = True
                 break
             except ValueError as ve:
@@ -205,6 +233,7 @@ try:
         st.write("Nenhuma informação disponível para esta ação.")
 except Exception as e:
     st.error(f"Erro ao acessar o banco de dados: {e}")
+
 
 
 
