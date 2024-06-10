@@ -52,6 +52,29 @@ def pegar_info_acoes():
     conn.commit()
     conn.close()
 
+# Função para testar a conexão com o banco de dados
+def testar_conexao():
+    try:
+        conn = sqlite3.connect('plotos.db')
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Erro ao conectar ao banco de dados: {e}")
+        return False
+
+# Função para verificar as informações contidas no banco de dados
+def verificar_informacoes():
+    try:
+        conn = sqlite3.connect('plotos.db')
+        c = conn.cursor()
+        c.execute('SELECT * FROM acoes_info')
+        data = c.fetchall()
+        conn.close()
+        return data
+    except Exception as e:
+        st.error(f"Erro ao acessar o banco de dados: {e}")
+        return []
+
 # Função para formatar a data
 def formatar_data(data):
     if data is not None:
@@ -90,10 +113,25 @@ df_acao = df[df['snome'] == nome_acao_escolhida]
 sigla_acao_escolhida = df_acao.iloc[0]['sigla_acao']
 sigla_acao_escolhida += '.SA'
 
-# Atualizar informações das ações e armazenar no banco de dados
-if st.sidebar.button('Atualizar informações das ações'):
+# Botão para testar a conexão com o banco de dados
+if st.sidebar.button('Testar Conexão com o Banco de Dados'):
+    if testar_conexao():
+        st.sidebar.success('Conexão com o banco de dados bem-sucedida!')
+    else:
+        st.sidebar.error('Falha na conexão com o banco de dados.')
+
+# Botão para atualizar informações das ações e armazenar no banco de dados
+if st.sidebar.button('Atualizar Informações das Ações'):
     pegar_info_acoes()
     st.sidebar.success('Informações atualizadas com sucesso!')
+
+# Botão para verificar as informações contidas no banco de dados
+if st.sidebar.button('Verificar Informações do Banco de Dados'):
+    data = verificar_informacoes()
+    if data:
+        st.write(pd.DataFrame(data, columns=['ID', 'Symbol', 'Info']))
+    else:
+        st.write("Nenhuma informação disponível no banco de dados.")
 
 # Exibir as informações da ação escolhida
 conn = sqlite3.connect('plotos.db')
@@ -114,6 +152,7 @@ else:
     st.write("Nenhuma informação disponível para esta ação.")
 
 conn.close()
+
 
 
 
