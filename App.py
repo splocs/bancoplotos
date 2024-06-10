@@ -23,8 +23,8 @@ def pegar_info_acoes():
     # Criar tabela se não existir
     c.execute('''
     CREATE TABLE IF NOT EXISTS acoes_info (
-        id INTEGER PRIMARY KEY,
-        symbol TEXT,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        symbol TEXT UNIQUE,
         info TEXT
     )
     ''')
@@ -36,6 +36,8 @@ def pegar_info_acoes():
 
         try:
             info = acao.info
+            if not info:
+                raise ValueError(f"Informações não encontradas para {symbol}")
         except Exception as e:
             st.warning(f"Erro ao buscar informações para {symbol}: {e}")
             continue
@@ -74,12 +76,6 @@ def verificar_informacoes():
     except Exception as e:
         st.error(f"Erro ao acessar o banco de dados: {e}")
         return []
-
-# Função para formatar a data
-def formatar_data(data):
-    if data is not None:
-        return pd.to_datetime(data, unit='s').strftime('%d-%m-%Y')
-    return 'N/A'
 
 # Função para pegar valores online
 def pegar_valores_online(sigla_acao):
@@ -138,8 +134,8 @@ conn = sqlite3.connect('plotos.db')
 c = conn.cursor()
 c.execute('''
 CREATE TABLE IF NOT EXISTS acoes_info (
-    id INTEGER PRIMARY KEY,
-    symbol TEXT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT UNIQUE,
     info TEXT
 )
 ''')
@@ -152,6 +148,7 @@ else:
     st.write("Nenhuma informação disponível para esta ação.")
 
 conn.close()
+
 
 
 
