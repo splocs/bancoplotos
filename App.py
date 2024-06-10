@@ -24,20 +24,29 @@ def pegar_info_acoes():
         symbol_yf = symbol + '.SA'
         acao = yf.Ticker(symbol_yf)
 
-        try:
-            info = acao.info
-            recommendations_summary = acao.recommendations_summary
-            dividends = acao.dividends
-            splits = acao.splits
-            balance_sheet = acao.balance_sheet
-            if not info:
-                raise ValueError(f"Informações não encontradas para {symbol}")
-        except Exception as e:
-            st.warning(f"Erro ao buscar informações para {symbol}: {e}")
-            continue
+        retry_attempts = 5
+        for attempt in range(retry_attempts):
+            try:
+                info = acao.info
+                recommendations_summary = acao.recommendations_summary
+                dividends = acao.dividends
+                splits = acao.splits
+                balance_sheet = acao.balance_sheet
+                if not info:
+                    raise ValueError(f"Informações não encontradas para {symbol}")
+                break
+            except Exception as e:
+                if attempt < retry_attempts - 1:
+                    st.warning(f"Erro ao buscar informações para {symbol}: {e}. Tentando novamente...")
+                    time.sleep(2)
+                else:
+                    st.error(f"Erro ao buscar informações para {symbol} após várias tentativas: {e}")
+                    continue
+
+        if attempt == retry_attempts - 1:
+            continue  # Se falhar após todas as tentativas, passa para a próxima ação
 
         # Tentar conectar e inserir/atualizar no banco de dados com retry
-        retry_attempts = 5
         for attempt in range(retry_attempts):
             try:
                 with sqlite3.connect('plotos.db', timeout=10) as conn:
@@ -194,6 +203,7 @@ try:
         st.write("Nenhuma informação disponível para esta ação.")
 except Exception as e:
     st.error(f"Erro ao acessar o banco de dados: {e}")
+
 
 
 
