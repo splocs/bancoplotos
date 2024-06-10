@@ -5,6 +5,7 @@ import sqlite3
 from datetime import date
 from PIL import Image
 import json
+import time
 
 # Configurando a largura da página
 st.set_page_config(layout="wide")
@@ -17,18 +18,7 @@ def pegar_dados_acoes():
 # Função para pegar informações das ações e armazenar no banco de dados
 def pegar_info_acoes():
     df = pegar_dados_acoes()
-    conn = sqlite3.connect('plotos.db')
-    c = conn.cursor()
-
-    # Criar tabela se não existir
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS acoes_info (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        symbol TEXT UNIQUE,
-        info TEXT
-    )
-    ''')
-
+    
     for index, row in df.iterrows():
         symbol = row['sigla_acao']
         symbol_yf = symbol + '.SA'
@@ -42,23 +32,43 @@ def pegar_info_acoes():
             st.warning(f"Erro ao buscar informações para {symbol}: {e}")
             continue
 
-        # Verificar se a informação já está no banco de dados
-        c.execute('SELECT * FROM acoes_info WHERE symbol = ?', (symbol,))
-        data = c.fetchone()
+        # Tentar conectar e inserir/atualizar no banco de dados com retry
+        retry_attempts = 5
+        for attempt in range(retry_attempts):
+            try:
+                with sqlite3.connect('plotos.db', timeout=10) as conn:
+                    c = conn.cursor()
+                    c.execute('''
+                    CREATE TABLE IF NOT EXISTS acoes_info (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        symbol TEXT UNIQUE,
+                        info TEXT
+                    )
+                    ''')
 
-        if data is None:
-            c.execute('INSERT INTO acoes_info (symbol, info) VALUES (?, ?)', (symbol, json.dumps(info)))
-        else:
-            c.execute('UPDATE acoes_info SET info = ? WHERE symbol = ?', (json.dumps(info), symbol))
+                    # Verificar se a informação já está no banco de dados
+                    c.execute('SELECT * FROM acoes_info WHERE symbol = ?', (symbol,))
+                    data = c.fetchone()
 
-    conn.commit()
-    conn.close()
+                    if data is None:
+                        c.execute('INSERT INTO acoes_info (symbol, info) VALUES (?, ?)', (symbol, json.dumps(info)))
+                    else:
+                        c.execute('UPDATE acoes_info SET info = ? WHERE symbol = ?', (json.dumps(info), symbol))
+                    
+                    conn.commit()
+                    break  # Se chegar até aqui, a operação foi bem-sucedida, então saímos do loop de retry
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e):
+                    st.warning(f"Tentativa {attempt + 1} de {retry_attempts} falhou: {e}")
+                    time.sleep(2)  # Esperar um pouco antes de tentar novamente
+                else:
+                    raise
 
 # Função para testar a conexão com o banco de dados
 def testar_conexao():
     try:
-        conn = sqlite3.connect('plotos.db')
-        conn.close()
+        with sqlite3.connect('plotos.db', timeout=10) as conn:
+            pass
         return True
     except Exception as e:
         st.error(f"Erro ao conectar ao banco de dados: {e}")
@@ -67,11 +77,10 @@ def testar_conexao():
 # Função para verificar as informações contidas no banco de dados
 def verificar_informacoes():
     try:
-        conn = sqlite3.connect('plotos.db')
-        c = conn.cursor()
-        c.execute('SELECT * FROM acoes_info')
-        data = c.fetchall()
-        conn.close()
+        with sqlite3.connect('plotos.db', timeout=10) as conn:
+            c = conn.cursor()
+            c.execute('SELECT * FROM acoes_info')
+            data = c.fetchall()
         return data
     except Exception as e:
         st.error(f"Erro ao acessar o banco de dados: {e}")
@@ -130,24 +139,26 @@ if st.sidebar.button('Verificar Informações do Banco de Dados'):
         st.write("Nenhuma informação disponível no banco de dados.")
 
 # Exibir as informações da ação escolhida
-conn = sqlite3.connect('plotos.db')
-c = conn.cursor()
-c.execute('''
-CREATE TABLE IF NOT EXISTS acoes_info (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol TEXT UNIQUE,
-    info TEXT
-)
-''')
-c.execute('SELECT info FROM acoes_info WHERE symbol = ?', (df_acao.iloc[0]['sigla_acao'],))
-info = c.fetchone()
+try:
+    with sqlite3.connect('plotos.db', timeout=10) as conn:
+        c = conn.cursor()
+        c.execute('''
+        CREATE TABLE IF NOT EXISTS acoes_info (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT UNIQUE,
+            info TEXT
+        )
+        ''')
+        c.execute('SELECT info FROM acoes_info WHERE symbol = ?', (df_acao.iloc[0]['sigla_acao'],))
+        info = c.fetchone()
 
-if info:
-    st.json(json.loads(info[0]))
-else:
-    st.write("Nenhuma informação disponível para esta ação.")
+    if info:
+        st.json(json.loads(info[0]))
+    else:
+        st.write("Nenhuma informação disponível para esta ação.")
+except Exception as e:
+    st.error(f"Erro ao acessar o banco de dados: {e}")
 
-conn.close()
 
 
 
