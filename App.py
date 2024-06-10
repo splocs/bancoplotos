@@ -26,11 +26,6 @@ def pegar_info_acoes():
 
         try:
             info = acao.info
-            dividendos = acao.dividends
-            balanco_patrimonial = acao.balance_sheet
-            desdobramentos = acao.splits
-            ganhos_capital = acao.actions
-            demonstracao_resultados = acao.financials
             if not info:
                 raise ValueError(f"Informações não encontradas para {symbol}")
         except Exception as e:
@@ -47,12 +42,7 @@ def pegar_info_acoes():
                     CREATE TABLE IF NOT EXISTS acoes_info (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         symbol TEXT UNIQUE,
-                        info TEXT,
-                        dividendos TEXT,
-                        balanco_patrimonial TEXT,
-                        desdobramentos TEXT,
-                        ganhos_capital TEXT,
-                        demonstracao_resultados TEXT
+                        info TEXT
                     )
                     ''')
 
@@ -61,11 +51,9 @@ def pegar_info_acoes():
                     data = c.fetchone()
 
                     if data is None:
-                        c.execute('INSERT INTO acoes_info (symbol, info, dividendos, balanco_patrimonial, desdobramentos, ganhos_capital, demonstracao_resultados) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                                  (symbol, json.dumps(info), json.dumps(dividendos), json.dumps(balanco_patrimonial), json.dumps(desdobramentos), json.dumps(ganhos_capital), json.dumps(demonstracao_resultados)))
+                        c.execute('INSERT INTO acoes_info (symbol, info) VALUES (?, ?)', (symbol, json.dumps(info)))
                     else:
-                        c.execute('UPDATE acoes_info SET info = ?, dividendos = ?, balanco_patrimonial = ?, desdobramentos = ?, ganhos_capital = ?, demonstracao_resultados = ? WHERE symbol = ?',
-                                  (json.dumps(info), json.dumps(dividendos), json.dumps(balanco_patrimonial), json.dumps(desdobramentos), json.dumps(ganhos_capital), json.dumps(demonstracao_resultados), symbol))
+                        c.execute('UPDATE acoes_info SET info = ? WHERE symbol = ?', (json.dumps(info), symbol))
                     
                     conn.commit()
                     break  # Se chegar até aqui, a operação foi bem-sucedida, então saímos do loop de retry
@@ -75,10 +63,6 @@ def pegar_info_acoes():
                     time.sleep(2)  # Esperar um pouco antes de tentar novamente
                 else:
                     raise
-
-# Restante do seu código permanece inalterado...
-
-
 
 # Função para testar a conexão com o banco de dados
 def testar_conexao():
