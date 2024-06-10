@@ -1,6 +1,6 @@
-numpy
-yfinance
-matplotlib
-plotly
-pandas
-sqlite3
+streamlit==1.25.0
+yfinance==0.2.18
+matplotlib==3.9.0
+plotly==5.22.0
+pandas==2.2.2
+
