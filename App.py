@@ -26,6 +26,10 @@ def pegar_info_acoes():
 
         try:
             info = acao.info
+            recommendations_summary = acao.recommendations_summary
+            dividends = acao.dividends
+            splits = acao.splits
+            balance_sheet = acao.balance_sheet
             if not info:
                 raise ValueError(f"Informações não encontradas para {symbol}")
         except Exception as e:
@@ -42,7 +46,11 @@ def pegar_info_acoes():
                     CREATE TABLE IF NOT EXISTS acoes_info (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         symbol TEXT UNIQUE,
-                        info TEXT
+                        info TEXT,
+                        recommendations_summary TEXT,
+                        dividends TEXT,
+                        splits TEXT,
+                        balance_sheet TEXT
                     )
                     ''')
 
@@ -51,9 +59,17 @@ def pegar_info_acoes():
                     data = c.fetchone()
 
                     if data is None:
-                        c.execute('INSERT INTO acoes_info (symbol, info) VALUES (?, ?)', (symbol, json.dumps(info)))
+                        c.execute('''
+                            INSERT INTO acoes_info (
+                                symbol, info, recommendations_summary, dividends, splits, balance_sheet
+                            ) VALUES (?, ?, ?, ?, ?, ?)''', 
+                            (symbol, json.dumps(info), recommendations_summary.to_json(), dividends.to_json(), splits.to_json(), balance_sheet.to_json()))
                     else:
-                        c.execute('UPDATE acoes_info SET info = ? WHERE symbol = ?', (json.dumps(info), symbol))
+                        c.execute('''
+                            UPDATE acoes_info 
+                            SET info = ?, recommendations_summary = ?, dividends = ?, splits = ?, balance_sheet = ? 
+                            WHERE symbol = ?''', 
+                            (json.dumps(info), recommendations_summary.to_json(), dividends.to_json(), splits.to_json(), balance_sheet.to_json(), symbol))
                     
                     conn.commit()
                     break  # Se chegar até aqui, a operação foi bem-sucedida, então saímos do loop de retry
@@ -91,6 +107,11 @@ def pegar_valores_online(sigla_acao):
     df = yf.download(sigla_acao, DATA_INICIO, DATA_FIM, progress=False)
     df.reset_index(inplace=True)
     return df
+
+# Função para exportar o banco de dados
+def exportar_banco():
+    with open('plotos.db', 'rb') as f:
+        st.download_button(label='Baixar Banco de Dados', data=f, file_name='plotos.db')
 
 # Definindo data de início e fim
 DATA_INICIO = '2017-01-01'
@@ -134,9 +155,12 @@ if st.sidebar.button('Atualizar Informações das Ações'):
 if st.sidebar.button('Verificar Informações do Banco de Dados'):
     data = verificar_informacoes()
     if data:
-        st.write(pd.DataFrame(data, columns=['ID', 'Symbol', 'Info']))
+        st.write(pd.DataFrame(data, columns=['ID', 'Symbol', 'Info', 'Recommendations Summary', 'Dividends', 'Splits', 'Balance Sheet']))
     else:
         st.write("Nenhuma informação disponível no banco de dados.")
+
+# Botão para exportar o banco de dados
+exportar_banco()
 
 # Exibir as informações da ação escolhida
 try:
@@ -146,18 +170,31 @@ try:
         CREATE TABLE IF NOT EXISTS acoes_info (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbol TEXT UNIQUE,
-            info TEXT
+            info TEXT,
+            recommendations_summary TEXT,
+            dividends TEXT,
+            splits TEXT,
+            balance_sheet TEXT
         )
         ''')
-        c.execute('SELECT info FROM acoes_info WHERE symbol = ?', (df_acao.iloc[0]['sigla_acao'],))
+        c.execute('SELECT info, recommendations_summary, dividends, splits, balance_sheet FROM acoes_info WHERE symbol = ?', (df_acao.iloc[0]['sigla_acao'],))
         info = c.fetchone()
 
     if info:
         st.json(json.loads(info[0]))
+        st.write("Recomendações:")
+        st.dataframe(pd.read_json(info[1]))
+        st.write("Dividendos:")
+        st.dataframe(pd.read_json(info[2]))
+        st.write("Splits:")
+        st.dataframe(pd.read_json(info[3]))
+        st.write("Balanço Patrimonial:")
+        st.dataframe(pd.read_json(info[4]))
     else:
         st.write("Nenhuma informação disponível para esta ação.")
 except Exception as e:
     st.error(f"Erro ao acessar o banco de dados: {e}")
+
 
 
 
