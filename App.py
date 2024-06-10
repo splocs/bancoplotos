@@ -44,7 +44,22 @@ def pegar_dados_acoes():
 def pegar_info_acoes():
     df = pegar_dados_acoes()
     
-    for index, row in df.iterrows():
+    for index, row in df.iterrows():def get_yahoo_stock_info(symbol, crumb, cookie):
+    fields = "'summaryProfile','summaryDetail','esgScores','price','incomeStatementHistory','incomeStatementHistoryQuarterly','balanceSheetHistory','balanceSheetHistoryQuarterly','cashflowStatementHistory','cashflowStatementHistoryQuarterly','defaultKeyStatistics','financialData','calendarEvents','secFilings','recommendationTrend','upgradeDowngradeHistory','institutionOwnership','fundOwnership','majorDirectHolders','majorHoldersBreakdown','insiderTransactions','insiderHolders','netSharePurchaseActivity','earnings','earningsHistory','earningsTrend','industryTrend','indexTrend','sectorTrend'"
+    quote_url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={symbol}&fields={fields}&crumb={crumb}"
+    headers = {"cookie": "; ".join([f"{key}={value}" for key, value in cookie.items()])}
+    try:
+        response = requests.get(quote_url, headers=headers)
+        response.raise_for_status()  # Verificar se houve erro na solicitação
+        data = response.json()
+        return data
+    except requests.exceptions.HTTPError as http_err:
+        st.warning(f'HTTP error occurred: {http_err}')
+    except requests.exceptions.RequestException as req_err:
+        st.warning(f'Request error occurred: {req_err}')
+    except Exception as err:
+        st.warning(f'An error occurred: {err}')
+
         symbol = row['sigla_acao']
         symbol_yf = symbol + '.SA'
         cookie = get_yahoo_cookie()
