@@ -74,11 +74,15 @@ def pegar_info_acoes():
 
         retry_attempts = 5
         success = False
+        wait_time = 1  # Tempo inicial de espera em segundos
+
         for attempt in range(retry_attempts):
             try:
                 url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol_yf}?modules=summaryProfile,financialData,quoteType,defaultKeyStatistics,assetProfile,summaryDetail&crumb={crumb}"
                 response = requests.get(url, cookies={cookie.name: cookie.value})
-                if response.status_code != 200:
+                if response.status_code == 429:
+                    raise ValueError(f"Erro ao buscar informações para {symbol_yf}: {response.status_code}")
+                elif response.status_code != 200:
                     raise ValueError(f"Erro ao buscar informações para {symbol_yf}: {response.status_code}")
                 
                 data = response.json()
@@ -96,10 +100,12 @@ def pegar_info_acoes():
                 break
             except ValueError as ve:
                 st.warning(f"Erro ao buscar informações para {symbol}: {ve}. Tentando novamente...")
-                time.sleep(2)
+                time.sleep(wait_time)
+                wait_time *= 2  # Aumenta o tempo de espera exponencialmente
             except Exception as e:
                 st.error(f"Erro ao buscar informações para {symbol}: {e}. Tentando novamente...")
-                time.sleep(2)
+                time.sleep(wait_time)
+                wait_time *= 2  # Aumenta o tempo de espera exponencialmente
         
         if not success:
             st.error(f"Erro ao buscar informações para {symbol} após várias tentativas.")
@@ -218,6 +224,7 @@ if st.sidebar.button('Testar Conexão com o Banco de Dados'):
 if st.sidebar.button('Atualizar Informações das Ações'):
     pegar_info_acoes()
     st.sidebar.success('Informações atualizadas com sucesso!')
+
 
 # Botão para verificar as informações contidas no banco de dados
 if st.sidebar.button('Verificar Informações do Banco de Dados'):
