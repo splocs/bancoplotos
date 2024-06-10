@@ -6,11 +6,36 @@ from datetime import date
 from PIL import Image
 import json
 import time
+import requests
 
 # Configurando a largura da página
 st.set_page_config(layout="wide")
 
-# Função para pegar os dados das ações
+# Função para obter o cookie do Yahoo Finance
+def get_yahoo_cookie():
+    cookie_url = "https://fc.yahoo.com"
+    response = requests.get(cookie_url)
+    cookie = response.cookies.get_dict()
+    return cookie
+
+# Função para obter a migalha (crumb) do Yahoo Finance
+def get_yahoo_crumb(cookie):
+    crumb_url = "https://query2.finance.yahoo.com/v1/test/getcrumb"
+    headers = {"cookie": "; ".join([f"{key}={value}" for key, value in cookie.items()])}
+    response = requests.get(crumb_url, headers=headers)
+    crumb = response.text
+    return crumb
+
+# Função para obter informações detalhadas da ação do Yahoo Finance
+def get_yahoo_stock_info(symbol, crumb, cookie):
+    fields = "'summaryProfile','summaryDetail','esgScores','price','incomeStatementHistory','incomeStatementHistoryQuarterly','balanceSheetHistory','balanceSheetHistoryQuarterly','cashflowStatementHistory','cashflowStatementHistoryQuarterly','defaultKeyStatistics','financialData','calendarEvents','secFilings','recommendationTrend','upgradeDowngradeHistory','institutionOwnership','fundOwnership','majorDirectHolders','majorHoldersBreakdown','insiderTransactions','insiderHolders','netSharePurchaseActivity','earnings','earningsHistory','earningsTrend','industryTrend','indexTrend','sectorTrend'"
+    quote_url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={symbol}&fields={fields}&crumb={crumb}"
+    headers = {"cookie": "; ".join([f"{key}={value}" for key, value in cookie.items()])}
+    response = requests.get(quote_url, headers=headers)
+    data = response.json()
+    return data
+
+# Função para obter os dados das ações
 def pegar_dados_acoes():
     path = 'https://raw.githubusercontent.com/splocs/meu-repositorio/main/acoes.csv'
     return pd.read_csv(path, delimiter=';')
@@ -22,11 +47,12 @@ def pegar_info_acoes():
     for index, row in df.iterrows():
         symbol = row['sigla_acao']
         symbol_yf = symbol + '.SA'
-        acao = yf.Ticker(symbol_yf)
+        cookie = get_yahoo_cookie()
+        crumb = get_yahoo_crumb(cookie)
+        stock_info = get_yahoo_stock_info(symbol_yf, crumb, cookie)
 
         try:
-            info = acao.info
-            if not info:
+            if not stock_info:
                 raise ValueError(f"Informações não encontradas para {symbol}")
         except Exception as e:
             st.warning(f"Erro ao buscar informações para {symbol}: {e}")
@@ -51,9 +77,9 @@ def pegar_info_acoes():
                     data = c.fetchone()
 
                     if data is None:
-                        c.execute('INSERT INTO acoes_info (symbol, info) VALUES (?, ?)', (symbol, json.dumps(info)))
+                        c.execute('INSERT INTO acoes_info (symbol, info) VALUES (?, ?)', (symbol, json.dumps(stock_info)))
                     else:
-                        c.execute('UPDATE acoes_info SET info = ? WHERE symbol = ?', (json.dumps(info), symbol))
+                        c.execute('UPDATE acoes_info SET info = ? WHERE symbol = ?', (json.dumps(stock_info), symbol))
                     
                     conn.commit()
                     break  # Se chegar até aqui, a operação foi bem-sucedida, então saímos do loop de retry
