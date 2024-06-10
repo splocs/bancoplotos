@@ -4,26 +4,15 @@ import yfinance as yf
 import sqlite3
 from datetime import date
 from PIL import Image
+import json
 
 # Configurando a largura da página
 st.set_page_config(layout="wide")
-
-# Função para formatar a data
-def formatar_data(data):
-    if data is not None:
-        return pd.to_datetime(data, unit='s').strftime('%d-%m-%Y')
-    return 'N/A'
 
 # Função para pegar os dados das ações
 def pegar_dados_acoes():
     path = 'https://raw.githubusercontent.com/splocs/meu-repositorio/main/acoes.csv'
     return pd.read_csv(path, delimiter=';')
-
-# Função para pegar valores online
-def pegar_valores_online(sigla_acao):
-    df = yf.download(sigla_acao, DATA_INICIO, DATA_FIM, progress=False)
-    df.reset_index(inplace=True)
-    return df
 
 # Função para pegar informações das ações e armazenar no banco de dados
 def pegar_info_acoes():
@@ -51,12 +40,24 @@ def pegar_info_acoes():
         data = c.fetchone()
 
         if data is None:
-            c.execute('INSERT INTO acoes_info (symbol, info) VALUES (?, ?)', (symbol, str(info)))
+            c.execute('INSERT INTO acoes_info (symbol, info) VALUES (?, ?)', (symbol, json.dumps(info)))
         else:
-            c.execute('UPDATE acoes_info SET info = ? WHERE symbol = ?', (str(info), symbol))
+            c.execute('UPDATE acoes_info SET info = ? WHERE symbol = ?', (json.dumps(info), symbol))
 
     conn.commit()
     conn.close()
+
+# Função para formatar a data
+def formatar_data(data):
+    if data is not None:
+        return pd.to_datetime(data, unit='s').strftime('%d-%m-%Y')
+    return 'N/A'
+
+# Função para pegar valores online
+def pegar_valores_online(sigla_acao):
+    df = yf.download(sigla_acao, DATA_INICIO, DATA_FIM, progress=False)
+    df.reset_index(inplace=True)
+    return df
 
 # Definindo data de início e fim
 DATA_INICIO = '2017-01-01'
@@ -96,13 +97,11 @@ c.execute('SELECT info FROM acoes_info WHERE symbol = ?', (df_acao.iloc[0]['sigl
 info = c.fetchone()
 
 if info:
-    st.json(info[0])
+    st.json(json.loads(info[0]))
 else:
     st.write("Nenhuma informação disponível para esta ação.")
 
 conn.close()
-
-
 
 
 
