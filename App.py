@@ -26,14 +26,22 @@ def get_yahoo_crumb(cookie):
     crumb = response.text
     return crumb
 
-# Função para obter informações detalhadas da ação do Yahoo Finance
 def get_yahoo_stock_info(symbol, crumb, cookie):
     fields = "'summaryProfile','summaryDetail','esgScores','price','incomeStatementHistory','incomeStatementHistoryQuarterly','balanceSheetHistory','balanceSheetHistoryQuarterly','cashflowStatementHistory','cashflowStatementHistoryQuarterly','defaultKeyStatistics','financialData','calendarEvents','secFilings','recommendationTrend','upgradeDowngradeHistory','institutionOwnership','fundOwnership','majorDirectHolders','majorHoldersBreakdown','insiderTransactions','insiderHolders','netSharePurchaseActivity','earnings','earningsHistory','earningsTrend','industryTrend','indexTrend','sectorTrend'"
     quote_url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={symbol}&fields={fields}&crumb={crumb}"
     headers = {"cookie": "; ".join([f"{key}={value}" for key, value in cookie.items()])}
-    response = requests.get(quote_url, headers=headers)
-    data = response.json()
-    return data
+    try:
+        response = requests.get(quote_url, headers=headers)
+        response.raise_for_status()  # Verificar se houve erro na solicitação
+        data = response.json()
+        return data
+    except requests.exceptions.HTTPError as http_err:
+        st.warning(f'HTTP error occurred: {http_err}')
+    except requests.exceptions.RequestException as req_err:
+        st.warning(f'Request error occurred: {req_err}')
+    except Exception as err:
+        st.warning(f'An error occurred: {err}')
+
 
 # Função para obter os dados das ações
 def pegar_dados_acoes():
