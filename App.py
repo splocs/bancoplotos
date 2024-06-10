@@ -33,7 +33,12 @@ def pegar_info_acoes():
         symbol = row['sigla_acao']
         symbol_yf = symbol + '.SA'
         acao = yf.Ticker(symbol_yf)
-        info = acao.info
+
+        try:
+            info = acao.info
+        except Exception as e:
+            st.warning(f"Erro ao buscar informações para {symbol}: {e}")
+            continue
 
         # Verificar se a informação já está no banco de dados
         c.execute('SELECT * FROM acoes_info WHERE symbol = ?', (symbol,))
@@ -93,6 +98,13 @@ if st.sidebar.button('Atualizar informações das ações'):
 # Exibir as informações da ação escolhida
 conn = sqlite3.connect('plotos.db')
 c = conn.cursor()
+c.execute('''
+CREATE TABLE IF NOT EXISTS acoes_info (
+    id INTEGER PRIMARY KEY,
+    symbol TEXT,
+    info TEXT
+)
+''')
 c.execute('SELECT info FROM acoes_info WHERE symbol = ?', (df_acao.iloc[0]['sigla_acao'],))
 info = c.fetchone()
 
@@ -102,6 +114,7 @@ else:
     st.write("Nenhuma informação disponível para esta ação.")
 
 conn.close()
+
 
 
 
